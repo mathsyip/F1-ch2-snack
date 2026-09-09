@@ -2,502 +2,652 @@
 <html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>正負數乘法動態點擊探索平台</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>有向數貪食蛇</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+        
         body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f1f5f9;
-            user-select: none;
-        }
-
-        /* 點選卡牌動畫 */
-        .card-item {
-            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-            cursor: pointer;
-        }
-        .card-item:hover {
-            transform: translateY(-8px) scale(1.03);
-        }
-        .card-item:active {
-            transform: scale(0.95);
+            font-family: 'Nunito', sans-serif;
+            touch-action: none; /* Prevent scroll on mobile while swiping/pressing */
+            background-color: #f0fdf4;
+            color: #334155;
         }
         
-        /* 卡牌選中狀態 */
-        .card-item.active-card {
-            transform: translateY(-12px) scale(1.08);
-            box-shadow: 0 12px 20px -3px rgba(59, 130, 246, 0.3), 0 4px 6px -2px rgba(59, 130, 246, 0.2);
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 6px solid #86efac;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
 
-        .card-item.active-card.negative-style {
-            box-shadow: 0 12px 20px -3px rgba(239, 68, 68, 0.3), 0 4px 6px -2px rgba(239, 68, 68, 0.2);
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
         }
 
-        /* 數字跳動動畫 */
-        @keyframes numberPop {
-            0% { transform: scale(0.8); opacity: 0.5; }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); opacity: 1; }
+        .btn {
+            transition: all 0.1s ease;
         }
-        .pop-effect {
-            animation: numberPop 0.3s ease-out forwards;
+        .btn:active {
+            transform: scale(0.95);
         }
 
-        /* 閃爍強調動畫 */
-        @keyframes glowPulse {
-            0%, 100% { box-shadow: 0 0 15px rgba(34, 197, 94, 0.4); }
-            50% { box-shadow: 0 0 25px rgba(34, 197, 94, 0.8); }
+        /* D-Pad styles */
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
+            width: 180px;
+            height: 180px;
+            margin: 0 auto;
         }
-        .positive-glow {
-            animation: glowPulse 2s infinite;
+        .d-btn {
+            background-color: #ffffff;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #475569;
+            border: 2px solid #e2e8f0;
+            user-select: none;
+            box-shadow: 0 4px 0 #cbd5e1;
         }
+        .d-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #cbd5e1;
+        }
+        .up { grid-column: 2; grid-row: 1; }
+        .left { grid-column: 1; grid-row: 2; }
+        .right { grid-column: 3; grid-row: 2; }
+        .down { grid-column: 2; grid-row: 3; }
+
+        /* Overlays */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(2px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .hidden { display: none !important; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="min-h-screen flex flex-col items-center py-4 px-2">
 
-    <nav class="bg-indigo-600 text-white shadow-lg sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <span class="text-3xl">🎴</span>
-                <div>
-                    <h1 class="text-xl font-bold tracking-wide">正負數乘法 - 動態點擊探索平台</h1>
-                    <p class="text-xs text-indigo-200 hidden sm:block">點擊牌卡即可即時進行正負數乘法運算演示</p>
-                </div>
+    <!-- Header / Stats -->
+    <div class="w-full max-w-[500px] mb-4">
+        <h1 class="text-3xl font-black text-center text-green-600 mb-2 tracking-wider">有向數貪食蛇</h1>
+        
+        <div class="flex justify-between items-center bg-white p-3 rounded-xl border-2 border-green-200 shadow-sm">
+            <div class="text-lg font-bold text-slate-600">
+                分數: <span id="scoreDisplay" class="text-green-500 text-2xl">0</span>
             </div>
-            <div class="flex items-center space-x-2">
-                <button id="mode-demo-btn" onclick="switchMainTab('demo')" class="px-4 py-2 rounded-lg font-bold text-sm bg-white text-indigo-700 shadow hover:bg-indigo-50 transition">
-                    📋 經典 4 大情境
-                </button>
-                <button id="mode-sandbox-btn" onclick="switchMainTab('sandbox')" class="px-4 py-2 rounded-lg font-bold text-sm bg-indigo-700 text-indigo-100 hover:bg-indigo-800 transition">
-                    🧪 自由實驗室
-                </button>
+            <div id="activeBuffs" class="flex gap-2 text-sm font-bold">
+                <!-- Buff indicators will go here -->
             </div>
-        </div>
-    </nav>
-
-    <main class="flex-grow max-w-6xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
-
-        <!-- ===== 頁籤一：經典 4 大情境選單 ===== -->
-        <div id="demo-tab-container" class="bg-white rounded-2xl shadow-md p-3 md:p-4 border border-slate-200">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <button onclick="loadPreset(1)" id="preset-btn-1" class="preset-tab flex flex-col items-center p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 text-indigo-900 font-bold transition">
-                    <span class="text-xs text-indigo-500 mb-1">情境 (一)</span>
-                    <span class="text-base">得到 +5 分卡</span>
-                </button>
-                <button onclick="loadPreset(2)" id="preset-btn-2" class="preset-tab flex flex-col items-center p-3 rounded-xl border-2 border-transparent hover:bg-slate-100 text-slate-700 font-bold transition">
-                    <span class="text-xs text-slate-400 mb-1">情境 (二)</span>
-                    <span class="text-base">失去 +5 分卡</span>
-                </button>
-                <button onclick="loadPreset(3)" id="preset-btn-3" class="preset-tab flex flex-col items-center p-3 rounded-xl border-2 border-transparent hover:bg-slate-100 text-slate-700 font-bold transition">
-                    <span class="text-xs text-slate-400 mb-1">情境 (三)</span>
-                    <span class="text-base">得到 -5 分卡</span>
-                </button>
-                <button onclick="loadPreset(4)" id="preset-btn-4" class="preset-tab flex flex-col items-center p-3 rounded-xl border-2 border-transparent hover:bg-slate-100 text-slate-700 font-bold transition">
-                    <span class="text-xs text-slate-400 mb-1">情境 (四)</span>
-                    <span class="text-base">失去 -5 分卡</span>
-                </button>
+            <div class="text-lg font-bold text-slate-600">
+                長度: <span id="lengthDisplay" class="text-blue-500 text-2xl">3</span>
             </div>
         </div>
 
-        <!-- ===== 頁籤二：自由實驗室設定控制項 (預設隱藏) ===== -->
-        <div id="sandbox-tab-container" class="hidden bg-white rounded-2xl shadow-md p-5 border border-slate-200">
-            <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
-                <span class="mr-2">🎛️</span> 自訂情境參數：
-            </h2>
-            <div class="grid md:grid-cols-3 gap-6">
-                <!-- 動作選擇 -->
-                <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-2">1. 選擇動作：</label>
-                    <div class="flex space-x-2">
-                        <button id="sb-act-gain" onclick="setSandboxAction('gain')" class="flex-1 py-2.5 rounded-xl font-bold border-2 border-emerald-500 bg-emerald-50 text-emerald-700">
-                            得到 (＋)
-                        </button>
-                        <button id="sb-act-lose" onclick="setSandboxAction('lose')" class="flex-1 py-2.5 rounded-xl font-bold border-2 border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100">
-                            失去 (－)
-                        </button>
-                    </div>
-                </div>
+        <!-- Question Display -->
+        <div class="mt-4 bg-yellow-50 border-4 border-yellow-300 rounded-xl p-4 text-center shadow-md transform transition-transform" id="questionBox">
+            <p class="text-sm text-yellow-700 font-bold mb-1">計算此題並吃掉正確答案：</p>
+            <div id="questionDisplay" class="text-4xl font-black text-yellow-900 tracking-widest drop-shadow-sm">
+                準備開始
+            </div>
+        </div>
+    </div>
 
-                <!-- 卡牌數值 -->
-                <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-2">2. 每張分卡數值：</label>
-                    <div class="flex items-center space-x-2">
-                        <input type="number" id="sb-card-val" value="-5" class="w-full text-center py-2 border-2 border-slate-300 rounded-xl font-bold text-lg focus:border-indigo-500 outline-none">
-                        <button onclick="updateSandbox()" class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-indigo-700 whitespace-nowrap">套用</button>
-                    </div>
-                </div>
+    <!-- Game Area -->
+    <div id="game-container">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
 
-                <!-- 卡牌數量 -->
-                <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-2">3. 提供幾張牌 (1~8)：</label>
-                    <div class="flex items-center space-x-2">
-                        <input type="range" id="sb-card-count" min="1" max="8" value="4" oninput="updateSandbox()" class="w-full accent-indigo-600">
-                        <span id="sb-count-num" class="font-bold text-lg text-indigo-600 w-8 text-center">4</span>
-                    </div>
-                </div>
+        <!-- Start Menu -->
+        <div id="startMenu" class="overlay">
+            <h2 class="text-4xl font-black text-green-600 mb-6 drop-shadow-sm">選擇難度</h2>
+            <div class="flex flex-col gap-4 w-3/4 max-w-[250px]">
+                <button onclick="startGame('easy')" class="btn bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full text-xl shadow-[0_4px_0_rgb(21,128,61)] border-2 border-green-300">容易 (加減)</button>
+                <button onclick="startGame('medium')" class="btn bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-full text-xl shadow-[0_4px_0_rgb(161,98,7)] border-2 border-yellow-300">中等 (加減乘)</button>
+                <button onclick="startGame('hard')" class="btn bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-full text-xl shadow-[0_4px_0_rgb(153,27,27)] border-2 border-red-300">困難 (四則運算)</button>
+            </div>
+            <div class="mt-8 text-sm text-slate-600 text-center px-4 bg-white/80 p-3 rounded-lg border border-slate-200">
+                <p>💡 吃到錯誤答案會扣分並縮短長度</p>
+                <p class="mt-2"><span class="text-purple-500 font-bold">●</span> 穿牆藥水 &nbsp; <span class="text-blue-500 font-bold">●</span> 減速藥水</p>
             </div>
         </div>
 
-        <div class="grid lg:grid-cols-12 gap-6 items-stretch">
-            
-            <!-- 左側：點擊卡牌區 (占 7 格) -->
-            <div class="lg:col-span-7 bg-white rounded-3xl shadow-lg p-6 flex flex-col justify-between border border-slate-200 relative overflow-hidden">
-                <div>
-                    <div class="flex justify-between items-center mb-6">
-                        <div>
-                            <span id="scenario-badge" class="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-indigo-100 text-indigo-700">情境展示</span>
-                            <h2 id="scenario-title" class="text-xl md:text-2xl font-black text-slate-800 mt-1">
-                                小明在比賽中失去下列 4 張分卡
-                            </h2>
-                        </div>
-                        <span class="text-xs bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg font-medium">👇 請點擊牌卡</span>
-                    </div>
-
-                    <p class="text-slate-500 text-sm mb-6">點擊任意一張牌即可「選擇/取消」該牌，觀察右側總得分的即時變化：</p>
-
-                    <!-- 卡牌容器 (動態渲染) -->
-                    <div id="cards-wrapper" class="flex flex-wrap justify-center items-center gap-3 md:gap-4 my-8 min-h-[160px]">
-                        <!-- Cards will be generated here -->
-                    </div>
-                </div>
-
-                <!-- 快捷按鈕操作區 -->
-                <div class="pt-4 border-t border-slate-100 flex flex-wrap justify-between items-center gap-3">
-                    <div class="text-sm font-medium text-slate-600">
-                        已點選：<span id="selected-count-label" class="text-indigo-600 font-black text-xl">0</span> / <span id="total-count-label" class="font-bold">4</span> 張
-                    </div>
-                    <div class="flex space-x-2">
-                        <button onclick="selectAllCards()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition">
-                            全選牌卡
-                        </button>
-                        <button onclick="clearCardSelections()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition">
-                            清空重置
-                        </button>
-                    </div>
-                </div>
+        <!-- Game Over Menu -->
+        <div id="gameOverMenu" class="overlay hidden">
+            <h2 class="text-5xl font-black text-red-500 mb-2 drop-shadow-sm">遊戲結束</h2>
+            <p class="text-xl text-slate-600 mb-6 font-bold" id="gameOverReason">你撞牆了！</p>
+            <div class="bg-white p-6 rounded-xl border-4 border-slate-200 mb-6 text-center shadow-sm">
+                <p class="text-slate-500 mb-1 font-bold">最終分數</p>
+                <p class="text-5xl font-black text-green-500" id="finalScore">0</p>
             </div>
-
-            <!-- 右側：動態結果與乘法算式區 (占 5 格) -->
-            <div class="lg:col-span-5 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl shadow-xl p-6 md:p-8 flex flex-col justify-between border border-indigo-900/50 relative">
-                
-                <div>
-                    <!-- 標頭資訊 -->
-                    <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-6">
-                        <span class="text-indigo-400 font-bold text-sm tracking-wider uppercase flex items-center">
-                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping mr-2"></span>
-                            即時動態計算機
-                        </span>
-                        <span id="math-rule-tag" class="text-xs bg-indigo-900/80 text-indigo-300 px-2.5 py-1 rounded-md font-mono border border-indigo-700/50">
-                            負負得正
-                        </span>
-                    </div>
-
-                    <!-- 口語化解說文字 -->
-                    <div class="space-y-3 mb-8">
-                        <div class="text-slate-400 text-sm">當前的牌卡狀態：</div>
-                        <div class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 text-lg">
-                            <span id="desc-action-text" class="text-amber-400 font-bold">失去</span>
-                            <span id="desc-count-text" class="text-white font-black text-2xl mx-1">0</span> 張，
-                            每張是 <span id="desc-value-text" class="text-rose-400 font-bold">-5</span> 分
-                        </div>
-                    </div>
-
-                    <!-- 總得分結果顯示框 (核心視覺重點) -->
-                    <div class="mb-8">
-                        <div class="text-slate-400 text-sm mb-2">總得分變化：</div>
-                        <div id="result-box" class="bg-slate-800/90 rounded-2xl p-6 border-2 border-indigo-500/50 flex flex-col items-center justify-center text-center transition-all">
-                            <div class="text-slate-400 text-xs mb-1">總分結果為</div>
-                            <div id="result-text-display" class="text-3xl md:text-4xl font-black text-emerald-400 pop-effect">
-                                增加 0 分
-                            </div>
-                            <div id="result-num-signed" class="text-sm font-mono text-slate-400 mt-1">
-                                ( +0 分 )
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 對應的正負數乘法算式 -->
-                <div class="bg-indigo-950/80 rounded-2xl p-4 border border-indigo-800/60">
-                    <div class="text-indigo-300 text-xs font-semibold mb-2">對應正負數乘法算式：</div>
-                    <div id="formula-display" class="text-2xl md:text-3xl font-black font-mono tracking-wider text-center text-yellow-300">
-                        (-0) × (-5) = +0
-                    </div>
-                    <p id="formula-explanation" class="text-xs text-slate-400 text-center mt-2">
-                        「失去」代表負數乘數，「-5分」代表被乘數
-                    </p>
-                </div>
-
-            </div>
-
+            <button onclick="showMenu()" class="btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-xl shadow-[0_4px_0_rgb(37,99,235)] border-2 border-blue-300">返回主選單</button>
         </div>
+    </div>
 
-    </main>
+    <!-- Mobile Controls -->
+    <div class="mt-6 sm:hidden">
+        <div class="d-pad">
+            <div class="d-btn up" onpointerdown="handleInput('ArrowUp')">▲</div>
+            <div class="d-btn left" onpointerdown="handleInput('ArrowLeft')">◀</div>
+            <div class="d-btn right" onpointerdown="handleInput('ArrowRight')">▶</div>
+            <div class="d-btn down" onpointerdown="handleInput('ArrowDown')">▼</div>
+        </div>
+    </div>
 
     <script>
-        // 全域狀態管理 (State)
-        let currentState = {
-            presetId: 4,               // 預設呈現情境 4: 失去 -5 分卡
-            action: 'lose',            // 'gain' (+) 或 'lose' (-)
-            cardValue: -5,             // 每張卡牌的分數
-            totalCards: 4,             // 卡牌總張數
-            selectedCards: [false, false, false, false] // 哪些卡牌被選中 (點擊)
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const lengthDisplay = document.getElementById('lengthDisplay');
+        const questionDisplay = document.getElementById('questionDisplay');
+        const activeBuffs = document.getElementById('activeBuffs');
+        const startMenu = document.getElementById('startMenu');
+        const gameOverMenu = document.getElementById('gameOverMenu');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const gameOverReason = document.getElementById('gameOverReason');
+        const questionBox = document.getElementById('questionBox');
+
+        // Game Constants
+        const GRID_SIZE = 12; 
+        const TILE_COUNT = 12; 
+        const TILE_SIZE = canvas.width / TILE_COUNT; 
+
+        // Game State
+        let snake = [];
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let difficulty = 'easy';
+        let gameLoopTimeout;
+        let isPlaying = false;
+        
+        // Math State
+        let currentAns = 0;
+        let foods = []; // Array of {x, y, value, isCorrect}
+        
+        // Items State
+        let items = []; // Array of {x, y, type: 'ghost' | 'slow'}
+        let buffs = {
+            ghost: { active: false, timer: 0 },
+            slow: { active: false, timer: 0 }
         };
 
-        // 預設四大情境資料 (統一使用 5 / -5)
-        const presets = {
-            1: { name: '情境 (一)', action: 'gain', cardValue: 5, totalCards: 4, title: '小明在比賽中得到下列 4 張 +5 分卡' },
-            2: { name: '情境 (二)', action: 'lose', cardValue: 5, totalCards: 4, title: '小明在比賽中失去下列 4 張 +5 分卡' },
-            3: { name: '情境 (三)', action: 'gain', cardValue: -5, totalCards: 4, title: '小明在比賽中得到下列 4 張 -5 分卡' },
-            4: { name: '情境 (四)', action: 'lose', cardValue: -5, totalCards: 4, title: '小明在比賽中失去下列 4 張 -5 分卡' }
-        };
-
-        // 頁面載入完成初始化
-        window.onload = function() {
-            loadPreset(4); // 預設載入第四題（使用者舉例的情境）
-        };
-
-        // 切換主頁籤 (經典 vs 自由實驗室)
-        function switchMainTab(mode) {
-            const demoTab = document.getElementById('demo-tab-container');
-            const sandboxTab = document.getElementById('sandbox-tab-container');
-            const btnDemo = document.getElementById('mode-demo-btn');
-            const btnSandbox = document.getElementById('mode-sandbox-btn');
-
-            if (mode === 'demo') {
-                demoTab.classList.remove('hidden');
-                sandboxTab.classList.add('hidden');
-                btnDemo.className = "px-4 py-2 rounded-lg font-bold text-sm bg-white text-indigo-700 shadow hover:bg-indigo-50 transition";
-                btnSandbox.className = "px-4 py-2 rounded-lg font-bold text-sm bg-indigo-700 text-indigo-100 hover:bg-indigo-800 transition";
-            } else {
-                demoTab.classList.add('hidden');
-                sandboxTab.classList.remove('hidden');
-                btnSandbox.className = "px-4 py-2 rounded-lg font-bold text-sm bg-white text-indigo-700 shadow hover:bg-indigo-50 transition";
-                btnDemo.className = "px-4 py-2 rounded-lg font-bold text-sm bg-indigo-700 text-indigo-100 hover:bg-indigo-800 transition";
-                updateSandbox();
-            }
+        // Utility: Random Integer
+        function rand(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
-        // 載入預設四大情境
-        function loadPreset(id) {
-            currentState.presetId = id;
-            const p = presets[id];
-            currentState.action = p.action;
-            currentState.cardValue = p.cardValue;
-            currentState.totalCards = p.totalCards;
-            currentState.selectedCards = new Array(p.totalCards).fill(false);
+        // --- Math Generation Logic ---
+        function generateMathQuestion() {
+            let num1, num2, ans, operator, questionStr;
+            let ops = [];
+            
+            if (difficulty === 'easy') ops = ['+', '-'];
+            else if (difficulty === 'medium') ops = ['+', '-', '*'];
+            else ops = ['+', '-', '*', '/'];
 
-            // 更新選單按鈕樣式
-            for (let i = 1; i <= 4; i++) {
-                const btn = document.getElementById(`preset-btn-${i}`);
-                if (i === id) {
-                    btn.className = "preset-tab flex flex-col items-center p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 text-indigo-900 font-bold transition shadow-sm";
-                    btn.querySelector('span').className = "text-xs text-indigo-500 mb-1";
-                } else {
-                    btn.className = "preset-tab flex flex-col items-center p-3 rounded-xl border-2 border-transparent hover:bg-slate-100 text-slate-700 font-bold transition";
-                    btn.querySelector('span').className = "text-xs text-slate-400 mb-1";
+            operator = ops[rand(0, ops.length - 1)];
+
+            if (operator === '+') {
+                let limit = difficulty === 'easy' ? 10 : 25;
+                num1 = rand(-limit, limit);
+                num2 = rand(-limit, limit);
+                ans = num1 + num2;
+                questionStr = `${num1} + ${num2 < 0 ? `(${num2})` : num2}`;
+            } 
+            else if (operator === '-') {
+                let limit = difficulty === 'easy' ? 10 : 20;
+                num1 = rand(-limit, limit);
+                num2 = rand(-limit, limit);
+                ans = num1 - num2;
+                questionStr = `${num1} - ${num2 < 0 ? `(${num2})` : num2}`;
+            }
+            else if (operator === '*') {
+                let limit = difficulty === 'medium' ? 6 : 12;
+                num1 = rand(-limit, limit);
+                num2 = rand(-limit, limit);
+                ans = num1 * num2;
+                questionStr = `${num1} × ${num2 < 0 ? `(${num2})` : num2}`;
+            }
+            else if (operator === '/') {
+                // Ensure clean division
+                let limit = 12;
+                ans = rand(-limit, limit);
+                num2 = rand(-limit, limit);
+                if (num2 === 0) num2 = 1; // Prevent divide by zero
+                num1 = ans * num2;
+                questionStr = `${num1} ÷ ${num2 < 0 ? `(${num2})` : num2}`;
+            }
+
+            currentAns = ans;
+            questionDisplay.textContent = questionStr + " = ?";
+            
+            // Highlight animation for new question
+            questionBox.classList.add('scale-105', 'bg-yellow-200');
+            setTimeout(() => {
+                questionBox.classList.remove('scale-105', 'bg-yellow-200');
+            }, 300);
+
+            spawnFoods();
+        }
+
+        function getEmptyPosition() {
+            let x, y, isOccupied;
+            do {
+                isOccupied = false;
+                x = rand(0, TILE_COUNT - 1);
+                y = rand(0, TILE_COUNT - 1);
+                
+                // Check snake
+                for (let s of snake) {
+                    if (s.x === x && s.y === y) isOccupied = true;
+                }
+                // Check foods
+                for (let f of foods) {
+                    if (f.x === x && f.y === y) isOccupied = true;
+                }
+                // Check items
+                for (let i of items) {
+                    if (i.x === x && i.y === y) isOccupied = true;
+                }
+            } while (isOccupied);
+            return {x, y};
+        }
+
+        function spawnFoods() {
+            foods = [];
+            const foodCount = difficulty === 'easy' ? 3 : (difficulty === 'medium' ? 4 : 5);
+            
+            // Generate wrong answers
+            let options = [currentAns];
+            while (options.length < foodCount) {
+                // Generate a believable wrong answer
+                let variance = rand(-10, 10);
+                if (variance === 0) variance = 1;
+                let wrong = currentAns + variance;
+                
+                // Sometimes just flip the sign (common mistake)
+                if (Math.random() > 0.7 && currentAns !== 0) {
+                    wrong = -currentAns;
+                }
+
+                if (!options.includes(wrong)) {
+                    options.push(wrong);
                 }
             }
 
-            document.getElementById('scenario-badge').innerText = p.name;
-            document.getElementById('scenario-title').innerText = p.title;
+            // Shuffle options
+            options.sort(() => Math.random() - 0.5);
 
-            renderCards();
-            updateCalculation();
-        }
-
-        // 設定自由實驗室動作
-        function setSandboxAction(act) {
-            currentState.action = act;
-            const btnGain = document.getElementById('sb-act-gain');
-            const btnLose = document.getElementById('sb-act-lose');
-
-            if (act === 'gain') {
-                btnGain.className = "flex-1 py-2.5 rounded-xl font-bold border-2 border-emerald-500 bg-emerald-50 text-emerald-700";
-                btnLose.className = "flex-1 py-2.5 rounded-xl font-bold border-2 border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100";
-            } else {
-                btnLose.className = "flex-1 py-2.5 rounded-xl font-bold border-2 border-rose-500 bg-rose-50 text-rose-700";
-                btnGain.className = "flex-1 py-2.5 rounded-xl font-bold border-2 border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100";
+            // Place on grid
+            for (let i = 0; i < foodCount; i++) {
+                let pos = getEmptyPosition();
+                foods.push({
+                    x: pos.x,
+                    y: pos.y,
+                    value: options[i],
+                    isCorrect: options[i] === currentAns
+                });
             }
-            updateSandbox();
+
+            // Chance to spawn item
+            if (Math.random() < 0.3 && items.length === 0) {
+                spawnItem();
+            }
         }
 
-        // 更新自由實驗室設定
-        function updateSandbox() {
-            const valInput = parseInt(document.getElementById('sb-card-val').value) || 0;
-            const countInput = parseInt(document.getElementById('sb-card-count').value) || 1;
-
-            document.getElementById('sb-count-num').innerText = countInput;
-
-            currentState.cardValue = valInput;
-            currentState.totalCards = countInput;
-            currentState.selectedCards = new Array(countInput).fill(false);
-
-            const actionName = currentState.action === 'gain' ? '得到' : '失去';
-            const valName = valInput >= 0 ? `+${valInput}` : `${valInput}`;
-            document.getElementById('scenario-badge').innerText = '自由實驗室';
-            document.getElementById('scenario-title').innerText = `小明在比賽中${actionName}下列 ${countInput} 張 ${valName} 分卡`;
-
-            renderCards();
-            updateCalculation();
+        function spawnItem() {
+            let pos = getEmptyPosition();
+            let type = Math.random() > 0.5 ? 'ghost' : 'slow';
+            items.push({ x: pos.x, y: pos.y, type: type });
         }
 
-        // 渲染牌卡 UI
-        function renderCards() {
-            const wrapper = document.getElementById('cards-wrapper');
-            wrapper.innerHTML = '';
+        // --- Game Logic ---
+        function showMenu() {
+            gameOverMenu.classList.add('hidden');
+            startMenu.classList.remove('hidden');
+            isPlaying = false;
+        }
 
-            const isNegativeValue = currentState.cardValue < 0;
-            const displayVal = currentState.cardValue > 0 ? `+${currentState.cardValue}` : `${currentState.cardValue}`;
+        function startGame(diff) {
+            difficulty = diff;
+            startMenu.classList.add('hidden');
+            gameOverMenu.classList.add('hidden');
+            
+            // Reset state
+            snake = [
+                {x: 5, y: 5},
+                {x: 5, y: 6},
+                {x: 5, y: 7}
+            ];
+            dx = 0;
+            dy = -1; // Moving up initially
+            score = 0;
+            items = [];
+            buffs.ghost.active = false;
+            buffs.slow.active = false;
+            
+            updateStats();
+            generateMathQuestion();
+            
+            isPlaying = true;
+            loop();
+        }
 
-            for (let i = 0; i < currentState.totalCards; i++) {
-                const isSelected = currentState.selectedCards[i];
-                
-                const card = document.createElement('div');
-                
-                // 動態建構卡牌 CSS 樣式
-                let cardStyle = "card-item w-20 h-28 md:w-24 md:h-32 rounded-2xl border-4 flex flex-col items-center justify-center font-black text-2xl md:text-3xl shadow-md relative ";
-                
-                if (isNegativeValue) {
-                    // 負數牌風格
-                    if (isSelected) {
-                        cardStyle += "bg-rose-500 border-rose-600 text-white active-card negative-style";
-                    } else {
-                        cardStyle += "bg-white border-rose-400 text-rose-600 hover:border-rose-500";
-                    }
-                } else {
-                    // 正數牌風格
-                    if (isSelected) {
-                        cardStyle += "bg-blue-600 border-blue-700 text-white active-card";
-                    } else {
-                        cardStyle += "bg-white border-blue-400 text-blue-600 hover:border-blue-500";
+        function gameOver(reason) {
+            isPlaying = false;
+            clearTimeout(gameLoopTimeout);
+            
+            gameOverReason.textContent = reason;
+            finalScoreDisplay.textContent = score;
+            gameOverMenu.classList.remove('hidden');
+        }
+
+        function updateStats() {
+            scoreDisplay.textContent = score;
+            lengthDisplay.textContent = snake.length;
+            
+            // Update Buff UI
+            activeBuffs.innerHTML = '';
+            if (buffs.ghost.active) {
+                activeBuffs.innerHTML += `<span class="bg-purple-600 text-white px-2 py-1 rounded">穿牆 ${Math.ceil(buffs.ghost.timer/1000)}s</span>`;
+            }
+            if (buffs.slow.active) {
+                activeBuffs.innerHTML += `<span class="bg-blue-600 text-white px-2 py-1 rounded">減速 ${Math.ceil(buffs.slow.timer/1000)}s</span>`;
+            }
+        }
+
+        function applyBuff(type) {
+            buffs[type].active = true;
+            buffs[type].timer = 10000; // 10 seconds
+        }
+
+        function loop() {
+            if (!isPlaying) return;
+
+            // 所有難度皆固定為容易的速度 (180ms)
+            let baseSpeed = 180;
+            if (buffs.slow.active) baseSpeed += 80; // 吃減速藥水時再變慢
+            
+            // Update logic
+            update();
+            draw();
+
+            if (isPlaying) {
+                gameLoopTimeout = setTimeout(loop, baseSpeed);
+            }
+        }
+
+        function update() {
+            // Calculate next head position
+            let headX = snake[0].x + dx;
+            let headY = snake[0].y + dy;
+
+            // 固定時間步長為 180ms
+            const timeStep = 180;
+            ['ghost', 'slow'].forEach(type => {
+                if (buffs[type].active) {
+                    buffs[type].timer -= timeStep;
+                    if (buffs[type].timer <= 0) {
+                        buffs[type].active = false;
                     }
                 }
+            });
 
-                card.className = cardStyle;
+            // Wall Collision
+            if (headX < 0 || headX >= TILE_COUNT || headY < 0 || headY >= TILE_COUNT) {
+                if (buffs.ghost.active) {
+                    // Wrap around
+                    if (headX < 0) headX = TILE_COUNT - 1;
+                    if (headX >= TILE_COUNT) headX = 0;
+                    if (headY < 0) headY = TILE_COUNT - 1;
+                    if (headY >= TILE_COUNT) headY = 0;
+                } else {
+                    return gameOver("撞牆了！");
+                }
+            }
+
+            // Self Collision
+            for (let i = 0; i < snake.length; i++) {
+                if (snake[i].x === headX && snake[i].y === headY) {
+                    return gameOver("咬到自己了！");
+                }
+            }
+
+            // Create new head
+            let newHead = {x: headX, y: headY};
+            snake.unshift(newHead); // Add to beginning
+
+            let ateFood = false;
+
+            // Food Collision
+            for (let i = 0; i < foods.length; i++) {
+                if (headX === foods[i].x && headY === foods[i].y) {
+                    ateFood = true;
+                    if (foods[i].isCorrect) {
+                        // Correct Answer!
+                        score += (difficulty === 'easy' ? 10 : (difficulty === 'medium' ? 15 : 20));
+                        // Snake grows (we don't pop the tail)
+                        generateMathQuestion();
+                    } else {
+                        // Wrong Answer!
+                        score = Math.max(0, score - 5);
+                        // Penalty: pop tail twice to shrink by 1 net
+                        snake.pop(); // Remove growth
+                        if (snake.length > 1) snake.pop(); // Actual shrink
+                        
+                        // Flash red
+                        document.getElementById('game-container').classList.add('border-red-500');
+                        setTimeout(() => document.getElementById('game-container').classList.remove('border-red-500'), 200);
+
+                        if (snake.length === 0) {
+                            return gameOver("吃到錯誤答案，長度歸零！");
+                        }
+                        // Remove eaten wrong food
+                        foods.splice(i, 1);
+                    }
+                    break;
+                }
+            }
+
+            // Item Collision
+            for (let i = 0; i < items.length; i++) {
+                if (headX === items[i].x && headY === items[i].y) {
+                    applyBuff(items[i].type);
+                    items.splice(i, 1); // Remove item
+                    score += 5;
+                    break;
+                }
+            }
+
+            // If didn't eat food, remove tail to maintain length
+            if (!ateFood) {
+                snake.pop();
+            }
+
+            updateStats();
+        }
+
+        // --- Drawing Logic ---
+        function drawCell(x, y, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.roundRect(x * TILE_SIZE + 1, y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2, radius);
+            ctx.fill();
+        }
+
+        function drawTextCell(x, y, text, bgColor, textColor) {
+            // Draw Circle Background
+            ctx.fillStyle = bgColor;
+            ctx.beginPath();
+            ctx.arc(x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2, TILE_SIZE/2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 根據數字長度動態調整字體大小，避免雙位數負數（如 -15）超出版面
+            let textStr = text.toString();
+            let fontSize = TILE_SIZE * 0.7; // 單個數字的最大尺寸
+            if (textStr.length > 2) {
+                fontSize = TILE_SIZE * 0.55; 
+            } else if (textStr.length > 1) {
+                fontSize = TILE_SIZE * 0.65;
+            }
+
+            // Draw Text
+            ctx.fillStyle = textColor;
+            ctx.font = `900 ${fontSize}px Nunito`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2 + 2);
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#ffffff'; // Match container bg
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.lineWidth = 1;
+            for(let i=0; i<=TILE_COUNT; i++) {
+                ctx.beginPath(); ctx.moveTo(i*TILE_SIZE, 0); ctx.lineTo(i*TILE_SIZE, canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i*TILE_SIZE); ctx.lineTo(canvas.width, i*TILE_SIZE); ctx.stroke();
+            }
+
+            // Draw Items
+            items.forEach(item => {
+                let color = item.type === 'ghost' ? '#a855f7' : '#3b82f6'; // Purple : Blue
+                drawCell(item.x, item.y, 15, color);
+                // Icon (simple text)
+                ctx.fillStyle = 'white';
+                ctx.font = `bold ${TILE_SIZE * 0.65}px Arial`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(item.type === 'ghost' ? '👻' : '🐢', item.x * TILE_SIZE + TILE_SIZE/2, item.y * TILE_SIZE + TILE_SIZE/2 + 2);
+            });
+
+            // Draw Foods (Answers)
+            foods.forEach(food => {
+                drawTextCell(food.x, food.y, food.value, '#ef4444', '#ffffff');
+            });
+
+            // Draw Snake
+            snake.forEach((segment, index) => {
+                let isHead = index === 0;
+                let color;
                 
-                // 卡牌內部 HTML (含勾選提示)
-                card.innerHTML = `
-                    <span>${displayVal}</span>
-                    ${isSelected ? '<span class="absolute top-1 right-2 text-xs opacity-80">✓</span>' : ''}
-                `;
+                if (buffs.ghost.active) {
+                    color = isHead ? 'rgba(167, 139, 250, 0.9)' : 'rgba(139, 92, 246, 0.6)'; // Purple semi-transparent
+                } else {
+                    color = isHead ? '#34d399' : '#10b981'; // Green
+                }
 
-                // 綁定點擊事件 (Toggle 狀態)
-                card.onclick = function() {
-                    currentState.selectedCards[i] = !currentState.selectedCards[i];
-                    renderCards();
-                    updateCalculation();
-                };
-
-                wrapper.appendChild(card);
-            }
-
-            document.getElementById('total-count-label').innerText = currentState.totalCards;
+                drawCell(segment.x, segment.y, isHead ? 6 : 3, color);
+                
+                // Draw eyes on head
+                if (isHead) {
+                    ctx.fillStyle = '#064e3b';
+                    let eyeOffset = TILE_SIZE / 4;
+                    let eyeSize = TILE_SIZE / 6;
+                    
+                    if (dx === 1) { // Right
+                        ctx.fillRect(segment.x*TILE_SIZE + TILE_SIZE/2 + eyeOffset/2, segment.y*TILE_SIZE + eyeOffset, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x*TILE_SIZE + TILE_SIZE/2 + eyeOffset/2, segment.y*TILE_SIZE + TILE_SIZE - eyeOffset - eyeSize, eyeSize, eyeSize);
+                    } else if (dx === -1) { // Left
+                        ctx.fillRect(segment.x*TILE_SIZE + eyeOffset, segment.y*TILE_SIZE + eyeOffset, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x*TILE_SIZE + eyeOffset, segment.y*TILE_SIZE + TILE_SIZE - eyeOffset - eyeSize, eyeSize, eyeSize);
+                    } else if (dy === 1) { // Down
+                        ctx.fillRect(segment.x*TILE_SIZE + eyeOffset, segment.y*TILE_SIZE + TILE_SIZE/2 + eyeOffset/2, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x*TILE_SIZE + TILE_SIZE - eyeOffset - eyeSize, segment.y*TILE_SIZE + TILE_SIZE/2 + eyeOffset/2, eyeSize, eyeSize);
+                    } else if (dy === -1) { // Up
+                        ctx.fillRect(segment.x*TILE_SIZE + eyeOffset, segment.y*TILE_SIZE + eyeOffset, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x*TILE_SIZE + TILE_SIZE - eyeOffset - eyeSize, segment.y*TILE_SIZE + eyeOffset, eyeSize, eyeSize);
+                    }
+                }
+            });
         }
 
-        // 核心動態運算與 UI 更新
-        function updateCalculation() {
-            // 計算選中的牌張數
-            const selectedCount = currentState.selectedCards.filter(Boolean).length;
-            document.getElementById('selected-count-label').innerText = selectedCount;
+        // --- Controls ---
+        function handleInput(key) {
+            if (!isPlaying) return;
 
-            // 1. 動作正負倍數: 得到 = +1, 失去 = -1
-            const actionMultiplier = currentState.action === 'gain' ? 1 : -1;
-            
-            // 2. 算式中的乘數: selectedCount * actionMultiplier
-            // 例如: 失去 2 張 -> 乘數為 -2
-            const multiplierVal = selectedCount * actionMultiplier;
-            
-            // 3. 最終結果 = 乘數 * 卡牌數值
-            const totalScoreChange = multiplierVal * currentState.cardValue;
+            if ((key === 'ArrowUp' || key === 'w' || key === 'W') && dy === 0) {
+                dx = 0; dy = -1;
+            } else if ((key === 'ArrowDown' || key === 's' || key === 'S') && dy === 0) {
+                dx = 0; dy = 1;
+            } else if ((key === 'ArrowLeft' || key === 'a' || key === 'A') && dx === 0) {
+                dx = -1; dy = 0;
+            } else if ((key === 'ArrowRight' || key === 'd' || key === 'D') && dx === 0) {
+                dx = 1; dy = 0;
+            }
+        }
 
-            // ===== 右側 UI 動態更新 =====
-            
-            // 更新文字敘述
-            const actionText = currentState.action === 'gain' ? '得到' : '失去';
-            document.getElementById('desc-action-text').innerText = actionText;
-            document.getElementById('desc-action-text').className = currentState.action === 'gain' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold';
-            
-            document.getElementById('desc-count-text').innerText = selectedCount;
-            
-            const valDisplay = currentState.cardValue > 0 ? `+${currentState.cardValue}` : `${currentState.cardValue}`;
-            document.getElementById('desc-value-text').innerText = valDisplay;
-            document.getElementById('desc-value-text').className = currentState.cardValue >= 0 ? 'text-blue-400 font-bold' : 'text-rose-400 font-bold';
+        window.addEventListener('keydown', (e) => {
+            if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+                e.preventDefault();
+            }
+            handleInput(e.key);
+        });
 
-            // 更新總得分變化顯示區
-            const resultBox = document.getElementById('result-box');
-            const resultTextDisplay = document.getElementById('result-text-display');
-            const resultNumSigned = document.getElementById('result-num-signed');
+        // Touch Swipe Handling
+        let touchStartX = 0;
+        let touchStartY = 0;
 
-            let resultWord = "";
-            let signedString = "";
+        window.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, {passive: true});
 
-            if (totalScoreChange > 0) {
-                resultWord = `增加 ${totalScoreChange} 分`;
-                signedString = `( +${totalScoreChange} 分 )`;
-                resultTextDisplay.className = "text-3xl md:text-4xl font-black text-emerald-400 pop-effect";
-                resultBox.className = "bg-slate-800/90 rounded-2xl p-6 border-2 border-emerald-500/80 positive-glow flex flex-col items-center justify-center text-center transition-all";
-            } else if (totalScoreChange < 0) {
-                resultWord = `減少 ${Math.abs(totalScoreChange)} 分`;
-                signedString = `( ${totalScoreChange} 分 )`;
-                resultTextDisplay.className = "text-3xl md:text-4xl font-black text-rose-400 pop-effect";
-                resultBox.className = "bg-slate-800/90 rounded-2xl p-6 border-2 border-rose-500/80 flex flex-col items-center justify-center text-center transition-all";
+        window.addEventListener('touchend', (e) => {
+            if (!isPlaying) return;
+            
+            let touchEndX = e.changedTouches[0].screenX;
+            let touchEndY = e.changedTouches[0].screenY;
+            
+            let diffX = touchEndX - touchStartX;
+            let diffY = touchEndY - touchStartY;
+            
+            if (Math.abs(diffX) < 30 && Math.abs(diffY) < 30) return;
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (diffX > 0) {
+                    handleInput('ArrowRight');
+                } else {
+                    handleInput('ArrowLeft');
+                }
             } else {
-                resultWord = `不變 ( 0 分 )`;
-                signedString = `( 0 分 )`;
-                resultTextDisplay.className = "text-3xl md:text-4xl font-black text-slate-300 pop-effect";
-                resultBox.className = "bg-slate-800/90 rounded-2xl p-6 border-2 border-slate-700 flex flex-col items-center justify-center text-center transition-all";
+                if (diffY > 0) {
+                    handleInput('ArrowDown');
+                } else {
+                    handleInput('ArrowUp');
+                }
             }
+        }, {passive: true});
 
-            resultTextDisplay.innerText = resultWord;
-            resultNumSigned.innerText = signedString;
+        // Initialize UI
+        showMenu();
 
-            // 觸發重新動畫
-            resultTextDisplay.classList.remove('pop-effect');
-            void resultTextDisplay.offsetWidth; // 觸發 Reflow
-            resultTextDisplay.classList.add('pop-effect');
-
-            // ===== 數學算式與法則標籤更新 =====
-            const multStr = multiplierVal >= 0 ? `(+${multiplierVal})` : `(${multiplierVal})`;
-            const cardValStr = currentState.cardValue >= 0 ? `(+${currentState.cardValue})` : `(${currentState.cardValue})`;
-            const totalStr = totalScoreChange >= 0 ? `+${totalScoreChange}` : `${totalScoreChange}`;
-
-            document.getElementById('formula-display').innerText = `${multStr} × ${cardValStr} = ${totalStr}`;
-
-            // 口訣提示
-            const ruleTag = document.getElementById('math-rule-tag');
-            const explanation = document.getElementById('formula-explanation');
-
-            if (multiplierVal >= 0 && currentState.cardValue >= 0) {
-                ruleTag.innerText = "正正得正";
-                explanation.innerText = "「得到」(+) 正分牌 (+) ➔ 總分增加 (+)";
-            } else if (multiplierVal < 0 && currentState.cardValue >= 0) {
-                ruleTag.innerText = "負正得負";
-                explanation.innerText = "「失去」(-) 正分牌 (+) ➔ 總分減少 (-)";
-            } else if (multiplierVal >= 0 && currentState.cardValue < 0) {
-                ruleTag.innerText = "正負得負";
-                explanation.innerText = "「得到」(+) 負分牌 (-) ➔ 總分減少 (-)";
-            } else {
-                ruleTag.innerText = "負負得正";
-                explanation.innerText = "💡 關鍵概念：「失去」(-) 負分牌 (-) ➔ 相當於總分「增加」(＋)！";
-            }
-        }
-
-        // 一鍵全選
-        function selectAllCards() {
-            currentState.selectedCards = new Array(currentState.totalCards).fill(true);
-            renderCards();
-            updateCalculation();
-        }
-
-        // 清空選擇
-        function clearCardSelections() {
-            currentState.selectedCards = new Array(currentState.totalCards).fill(false);
-            renderCards();
-            updateCalculation();
-        }
     </script>
 </body>
 </html>
